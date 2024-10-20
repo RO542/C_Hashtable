@@ -97,7 +97,7 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
             return PROBE_SUCCESS;
         }
         x++;
-        curr_idx = (start_idx + OFFSET(x)) % ht->capacity;
+        curr_idx = (start_idx + probe_offset(x)) % ht->capacity;
         if ((++probe_cnt) >= ht->capacity) {
             break;
         }
@@ -215,7 +215,7 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
     do {
-        curr_idx = start_idx + OFFSET(x);
+        curr_idx = start_idx + probe_offset(x);
         if (ht->arr[curr_idx].state == UNUSED || ht->arr[curr_idx].state == DELETED) {
             return PROBE_NOT_FOUND;
         } else if (ht->arr[curr_idx].state == USED && ht->arr[curr_idx].stored_hash == hash && strcmp(key, ht->arr[curr_idx].key) == 0) {

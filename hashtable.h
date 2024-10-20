@@ -10,9 +10,13 @@
 #endif
 
 #ifdef QUAD_PROBING
-#define OFFSET(x) (x * x)
-#else
-#define OFFSET(x) (x)
+static inline unsigned int probe_offset(unsigned int x) {
+    return x * x;
+}
+#else 
+static inline unsigned int probe_offset(unsigned int x) {
+    return x;
+}
 #endif
 
 typedef enum EntryState {
