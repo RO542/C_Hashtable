@@ -5,7 +5,6 @@
 #include <stdbool.h>
 
 #include "hashtable.h"
-#define ht_create(type, base_cap) hashtable_create(sizeof(type), base_cap);
 
 bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity) {
     if (ht == NULL) {
@@ -96,15 +95,11 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
             *out_idx = curr_idx;
             return PROBE_SUCCESS;
         }
-        x++;
-        curr_idx = (start_idx + probe_offset(x)) % ht->capacity;
-        if ((++probe_cnt) >= ht->capacity) {
+        curr_idx = (start_idx + probe_offset(x++)) % ht->capacity;
+        if (++probe_cnt >= ht->capacity) {
             break;
         }
     } while (curr_idx != start_idx);
-
-    *out_hash = -1;
-    *out_idx = -1;
     return PROBE_NOT_FOUND;
 }
 
@@ -256,8 +251,7 @@ bool hashtable_get(const Hashtable *ht, const char *key, void *out_element) {
     }
 }
 
-
-struct Hashentry *hashtble_toArray(const Hashtable *ht) {
+struct Hashentry *hashtable_toArray(const Hashtable *ht) {
     if (!ht) {
         fprintf(stderr, "A valid hashtable pointer is needed to grab all USED Hashentries\n");
         return NULL;
@@ -277,20 +271,13 @@ struct Hashentry *hashtble_toArray(const Hashtable *ht) {
 
 
 int main() {
-    // Resize tests after hashtable_create
-    // Hashtable *ht = hashtable_create(sizeof(int), 100);
-    Hashtable *ht = ht_create(int, 100);
+    Hashtable *ht = hashtable_create(sizeof(int), 100);
 
     int x = 21, y = 60, z = 72;
     hashtable_put(ht, "some_key", &x);
     hashtable_put(ht, "some_key_2", &y);
     hashtable_put(ht, "some_key_3", &z);
 
-    Hashentry *list = hashtble_toArray(ht);
-    for (int i = 0; i < ht->count; i++) {
-        printf("%s -> %d \n", list[i].key, *(int *)list[i].value);
-    }
-    free(list);
 
     int out_int;
     hashtable_get(ht, "some_key", &out_int);
@@ -302,9 +289,12 @@ int main() {
     hashtable_get(ht, "some_key_2", &out_int);
     printf("get key: some_key_2 should be 60 and got -> %d\n", out_int);
 
-
-    hashtable_get(ht, "nonexistent_key", &out_int);
+    int reput_int = 3000;
+    hashtable_put(ht, "some_key", &reput_int);
+    hashtable_get(ht, "some_key", &out_int);
+    printf("get key: some_key should be 3000 got -> %d\n", out_int);
 
     hashtable_deinit(ht);
     free(ht);
+    return 0;
 } 
