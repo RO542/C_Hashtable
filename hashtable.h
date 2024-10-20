@@ -19,7 +19,6 @@ typedef enum EntryState {
     UNUSED,
     USED,
     DELETED // tombstone
-    // NOT_FOUND could have been here
 } EntryState;
 
 typedef enum ProbeResult {
