@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #include "hashtable.h"
-
+#define ht_create(type, base_cap) hashtable_create(sizeof(type), base_cap);
 
 bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity) {
     if (ht == NULL) {
@@ -278,7 +278,8 @@ struct Hashentry *hashtble_toArray(const Hashtable *ht) {
 
 int main() {
     // Resize tests after hashtable_create
-    Hashtable *ht = hashtable_create(sizeof(int), 100);
+    // Hashtable *ht = hashtable_create(sizeof(int), 100);
+    Hashtable *ht = ht_create(int, 100);
 
     int x = 21, y = 60, z = 72;
     hashtable_put(ht, "some_key", &x);
