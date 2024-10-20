@@ -35,7 +35,7 @@ typedef struct Hashentry {
     char *key; 
     void *value; 
     unsigned int stored_hash; 
-    enum EntryState state;
+    EntryState state;
 } Hashentry;
 
 typedef struct Hashtable {
@@ -45,16 +45,16 @@ typedef struct Hashtable {
     Hashentry *arr; // internal array of Hashentries
 } Hashtable;
 
+
 bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity);
 void hashtable_deinit(Hashtable *ht);
 struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap);
+
 bool hashtable_put(Hashtable *ht, const char *key, void *value);
+bool hashtable_get(const Hashtable *ht, const char *key, void *out_element);
+void hashtable_remove(Hashtable *ht, const char *key);
 bool hashtable_resize(Hashtable *ht);
 
 struct Hashentry *hashtable_toArray(const Hashtable *ht);
 ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx);
 ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned long *out_hash, unsigned int *out_idx);
-
-/* returns a pointer to an array of structs for of all entries currently USED in the Hashtable
-caller is responsible for freeing the array pointer when done with it
-this is a shallow copy */

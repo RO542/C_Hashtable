@@ -7,7 +7,7 @@
 #include "hashtable.h"
 
 bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity) {
-    if (ht == NULL) {
+    if (!ht) {
         fprintf(stderr, "Hashtable is NULL, unable to initialize.\n");
         return false;
     }
@@ -210,29 +210,41 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
     do {
-        curr_idx = start_idx + probe_offset(x);
         if (ht->arr[curr_idx].state == UNUSED || ht->arr[curr_idx].state == DELETED) {
             return PROBE_NOT_FOUND;
-        } else if (ht->arr[curr_idx].state == USED && ht->arr[curr_idx].stored_hash == hash && strcmp(key, ht->arr[curr_idx].key) == 0) {
+        } else if (ht->arr[curr_idx].state == USED && ht->arr[curr_idx].stored_hash == hash && strncmp(key, ht->arr[curr_idx].key, MAX_KEY_LEN) == 0) {
             *used_idx = curr_idx;
             return PROBE_SUCCESS;
         }
-        x++;
-        if ((++probe_cnt) >= ht->capacity) {
+        curr_idx = start_idx + probe_offset(x++);
+        if (++probe_cnt >= ht->capacity) {
             break;
         }
     } while (curr_idx != start_idx);
     return PROBE_NOT_FOUND;
 }
 
-//TODO:
-bool hashtable_contains() {
-    return true;
-}
-bool hashtable_remove(Hashtable *ht, const char *key) {
-    return true;
+bool hashtable_contains(const Hashtable *ht, const char *key) {
+    unsigned int throwaway;
+    return probe_used_idx(ht, key, &throwaway) == PROBE_SUCCESS;
 }
 
+void hashtable_remove(Hashtable *ht, const char *key) {
+    unsigned int used_idx;
+    if (probe_used_idx(ht, key, &used_idx) == PROBE_SUCCESS) {
+        free(ht->arr[used_idx].key);
+        free(ht->arr[used_idx].value);
+        ht->arr[used_idx].key = NULL;
+        ht->arr[used_idx].value = NULL;
+        ht->arr[used_idx].stored_hash = 0;
+        ht->arr[used_idx].state = UNUSED; // TODO: make this DELETED and add tombstone logic
+        //TODO: consider making a function that initializes or reinitializes an entry ?
+        ht->count--;
+    }
+}
+
+//TODO: consider adding an enum to indicate the result of hashtable_get
+// this will make it so the caller knows the if the out_element pointer is safe to use
 bool hashtable_get(const Hashtable *ht, const char *key, void *out_element) {
     unsigned int used_idx;
     ProbeResult result = probe_used_idx(ht, key, &used_idx);
@@ -269,14 +281,18 @@ struct Hashentry *hashtable_toArray(const Hashtable *ht) {
     return out_arr;
 }
 
-
 int main() {
+    // basic testing
     Hashtable *ht = hashtable_create(sizeof(int), 100);
 
     int x = 21, y = 60, z = 72;
     hashtable_put(ht, "some_key", &x);
     hashtable_put(ht, "some_key_2", &y);
     hashtable_put(ht, "some_key_3", &z);
+
+    const char *arr_strings[] = {
+        "hello"
+    };
 
 
     int out_int;
@@ -292,7 +308,21 @@ int main() {
     int reput_int = 3000;
     hashtable_put(ht, "some_key", &reput_int);
     hashtable_get(ht, "some_key", &out_int);
+
     printf("get key: some_key should be 3000 got -> %d\n", out_int);
+
+    printf("contains key: some_key? -> %d\n", hashtable_contains(ht, "some_key"));
+    printf("contains key: some_key_2? -> %d\n", hashtable_contains(ht, "some_key_2"));
+    printf("contains key: some_key_3? -> %d\n", hashtable_contains(ht, "some_key_3"));
+    printf("contains key: no_key? -> %d\n", hashtable_contains(ht, "no_key"));
+
+    hashtable_remove(ht, "some_key_2");
+    printf("contains key: some_key_2? -> %d\n", hashtable_contains(ht, "some_key_2"));
+
+    hashtable_remove(ht, "some_key");
+    printf("hashtable stats after two removes count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
+
+
 
     hashtable_deinit(ht);
     free(ht);
