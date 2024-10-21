@@ -20,15 +20,15 @@ static inline unsigned int probe_offset(unsigned int x) {
 #endif
 
 typedef enum EntryState {
-    UNUSED,
-    USED,
-    DELETED // tombstone
+    ENTRY_UNUSED,
+    ENTRY_USED,
+    ENTRY_DELETED // tombstone
 } EntryState;
 
 typedef enum ProbeResult {
-    PROBE_SUCCESS,
-    PROBE_NOT_FOUND,
-    PROBE_ERROR // table full 
+    PROBE_KEY_FOUND,
+    PROBE_KEY_NOT_FOUND,
+    PROBE_ERROR
 } ProbeResult;
 
 typedef struct Hashentry {
