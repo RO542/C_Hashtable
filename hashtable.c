@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <stdbool.h>
 
 #include "hashtable.h"
@@ -69,44 +68,67 @@ unsigned long hash_func(const char *key_str) {
     while ((c = *key_str++)) {
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
     }
-    
+    return hash;
 }
 
-// probe the next open/usable index in the Hashtable
 ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned long *out_hash, unsigned int *out_idx) {
     if (ht->count == ht->capacity) {
-        fprintf(stderr, "Hashtable is full somehow, unable to probe or add new elements.\n");
+        fprintf(stderr, "Hashtable is full, unable to add new elements.\n");
         return PROBE_ERROR;
     }
-    if (strnlen(key_str, MAX_KEY_LEN) > MAX_KEY_LEN) {
-        fprintf(stderr, "Provided key is too long, the MAX_KEY_LEN can be increased by macro if desired.\n");
+    if (strlen(key_str) >= MAX_KEY_LEN) {
+        fprintf(stderr, "Provided key is too long.\n");
         return PROBE_ERROR;
     }
+
     unsigned long hash = hash_func(key_str);
     unsigned int start_idx = hash % ht->capacity;
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
+    int first_deleted_idx = -1;
     Hashentry *arr = ht->arr;
+
     do {
-        if (arr[curr_idx].state == ENTRY_DELETED || arr[curr_idx].state == ENTRY_UNUSED) { //TODO: DELETED does mean found
+        EntryState state = arr[curr_idx].state;
+        if (state == ENTRY_UNUSED) {
             *out_hash = hash;
-            *out_idx = curr_idx;
+            *out_idx = (first_deleted_idx != -1) ? first_deleted_idx : curr_idx;
             return PROBE_KEY_NOT_FOUND;
-        } else if (arr[curr_idx].state == ENTRY_USED && arr[curr_idx].stored_hash == hash && strncmp(arr[curr_idx].key, key_str, MAX_KEY_LEN) == 0) {
+        } else if (state == ENTRY_DELETED) {
+            if (first_deleted_idx == -1) {
+                first_deleted_idx = curr_idx;
+            }
+        } else if (state == ENTRY_USED && arr[curr_idx].stored_hash == hash && strcmp(arr[curr_idx].key, key_str) == 0) {
             *out_idx = curr_idx;
             return PROBE_KEY_FOUND;
         }
-        curr_idx = (start_idx + (++x)) % ht->capacity;
+        curr_idx = (start_idx + probe_offset(++x)) % ht->capacity;
         if (++probe_cnt >= ht->capacity) {
             break;
         }
     } while (curr_idx != start_idx);
-    return PROBE_KEY_NOT_FOUND;
+
+    if (first_deleted_idx != -1) {
+        *out_hash = hash;
+        *out_idx = first_deleted_idx;
+        return PROBE_KEY_NOT_FOUND;
+    }
+
+    fprintf(stderr, "Hashtable is full, unable to find free index.\n");
+    return PROBE_ERROR;
 }
 
-bool hashtable_resize(Hashtable *ht) {
+bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity) {
+    if (desired_capacity <= ht->capacity) {
+        float desired_load_factor = (float)ht->count / desired_capacity;
+        if (desired_load_factor >= TARGET_LOAD_FACTOR) {
+            fprintf(stderr, "The desired capacity passed to resize is too low to contain all current elements\n");
+            fprintf(stderr, "The current table will be maintained\n");
+            return false;
+        }
+    }
     unsigned int old_cap = ht->capacity;
-    unsigned int new_cap = old_cap * 2;
+    unsigned int new_cap = desired_capacity;
     Hashentry *old_arr = ht->arr;
     Hashentry *new_arr = (Hashentry *)malloc(sizeof(Hashentry) * new_cap);
     if (!new_arr) {
@@ -146,7 +168,7 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
         return false;
     }
     if ((ht->count + 1)/(float)ht->capacity >= TARGET_LOAD_FACTOR) {
-        if (!hashtable_resize(ht)) {
+        if (!hashtable_resize(ht, 2 * ht->capacity)) {
             fprintf(stderr, "hashtable_put failed due to failed resize\n");
             return false;
         }
@@ -155,7 +177,7 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
     unsigned int free_idx;
     ProbeResult result = probe_free_idx(ht, key, &hash, &free_idx);
     if (result == PROBE_ERROR) {
-        if (!hashtable_resize(ht)) {
+        if (!hashtable_resize(ht, 2 * ht->capacity)) {
             fprintf(stderr, "Failed to resize/expand table after probe_free_idx exhaustion.\n");
             return false;
         }
@@ -166,16 +188,14 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
         return true;
     }
 
-
     // this is the PROBE_KEY_NOT_FOUND case so allocatiosn and placement of the key/val must take place
     Hashentry *entry = &ht->arr[free_idx];
-
     size_t key_len = strnlen(key, MAX_KEY_LEN);
     if (key_len >= MAX_KEY_LEN) {
         fprintf(stderr, "Provided key is too long: MAX_KEY_LEN: %llu, provided key len: %llu\n", MAX_KEY_LEN, key_len); 
         return false;
     }
-    entry->key = (char *)malloc(key_len + 1); // +1 for the null terminator right ?
+    entry->key = (char *)malloc(key_len + 1);
     if (!entry->key) {
         fprintf(stderr, "failed to allocate memory for HashEntry key\n");
         return false;
@@ -193,11 +213,11 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
     entry->state = ENTRY_USED;
     entry->stored_hash = hash;
     ht->count++;
-    printf("hashtable_put stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
+    hashtable_stats(ht, "put");
     return true;
 }
 ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx) {
-    if (ht->count >= ht->capacity) {
+    if (ht->count == ht->capacity) {
         fprintf(stderr, "Cannot probe for next used index in Hashtable since count equals capacity.\n");
         return PROBE_ERROR;
     }
@@ -206,15 +226,16 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
     do {
-        if (ht->arr[curr_idx].state == ENTRY_UNUSED || ht->arr[curr_idx].state == ENTRY_DELETED) {
+        if (ht->arr[curr_idx].state == ENTRY_UNUSED) {
             return PROBE_KEY_NOT_FOUND;
         } else if (ht->arr[curr_idx].state == ENTRY_USED 
                    && ht->arr[curr_idx].stored_hash == hash 
-                   && strncmp(key, ht->arr[curr_idx].key, MAX_KEY_LEN) == 0) {
+                   && strcmp(key, ht->arr[curr_idx].key) == 0) {
             *used_idx = curr_idx;
             return PROBE_KEY_FOUND;
         }
-        curr_idx = (start_idx + (++x)) % ht->capacity;
+        // else the state is DELETED so we keep probing over
+        curr_idx = (start_idx + probe_offset(++x)) % ht->capacity;
         if (++probe_cnt >= ht->capacity) {
             break;
         }
@@ -231,55 +252,49 @@ bool hashtable_empty(const Hashtable *ht) {
     return ht->count == 0;
 }
 
+
+void hashtable_reinit_entry(Hashtable *ht, unsigned int entry_idx, EntryState state) {
+    free(ht->arr[entry_idx].key);
+    free(ht->arr[entry_idx].value);
+    ht->arr[entry_idx].state = state;
+    ht->arr[entry_idx].stored_hash = 0;
+    ht->arr[entry_idx].key = NULL;
+    ht->arr[entry_idx].value = NULL;
+}
+
 void hashtable_remove(Hashtable *ht, const char *key) {
     unsigned int used_idx;
     if (probe_used_idx(ht, key, &used_idx) == PROBE_KEY_FOUND) {
         printf("Found key to remove, input: %s -> found_key: %s\n", key, ht->arr[used_idx].key);
-        free(ht->arr[used_idx].key);
-        free(ht->arr[used_idx].value);
-        // ht->arr[used_idx].key = NULL;
-        // ht->arr[used_idx].value = NULL;
-        ht->arr[used_idx].stored_hash = 0;
-        ht->arr[used_idx].state = ENTRY_UNUSED; // TODO: make this DELETED and add tombstone logic
+        hashtable_reinit_entry(ht, used_idx, ENTRY_DELETED);
         ht->count--;
     }
+    hashtable_stats(ht, "Remove called");
 }
 
 void hashtable_clear(Hashtable *ht) {
     for (unsigned int i = 0; i < ht->capacity; i++) {
-        free(ht->arr[i].key);
-        free(ht->arr[i].value);
-        ht->arr[i].key = NULL;
-        ht->arr[i].value = NULL;
-        ht->arr[i].stored_hash = 0;
-        ht->arr[i].state = ENTRY_UNUSED; // TODO: make this DELETED and add tombstone logic
+        hashtable_reinit_entry(ht, i, ENTRY_UNUSED);
     }
     ht->count = 0;
 }
 
-
-
-//TODO: consider adding an enum to indicate the result of hashtable_get
-// this will make it so the caller knows the if the out_element pointer is safe to use
-bool hashtable_get(const Hashtable *ht, const char *key, void *out_element) {
+void *hashtable_get(const Hashtable *ht, const char *key) {
     unsigned int used_idx;
     ProbeResult result = probe_used_idx(ht, key, &used_idx);
     switch (result) {
-    case PROBE_KEY_FOUND: 
-        memcpy((char*)out_element, (char *)ht->arr[used_idx].value, ht->element_size);
-        return true;
+    case PROBE_KEY_FOUND:
+        return ht->arr[used_idx].value;
     case PROBE_KEY_NOT_FOUND:
-        out_element = NULL;
-        return true;
+        return NULL;
     case PROBE_ERROR: 
     default:
         fprintf(stderr, "Failed to perform get for Hashtable, probe_used_idx failed\n");
-        out_element = NULL;
-        return false;
+        return NULL;
     }
 }
 
-struct Hashentry *hashtable_toArray(const Hashtable *ht) {
+struct Hashentry *hashtable_to_items_array(const Hashtable *ht) {
     if (!ht) {
         fprintf(stderr, "A valid hashtable pointer is needed to grab all USED Hashentries\n");
         return NULL;
@@ -296,11 +311,13 @@ struct Hashentry *hashtable_toArray(const Hashtable *ht) {
     }
     return out_arr; 
 }
-int main() {
-    // basic testing
-    Hashtable *ht = hashtable_create(sizeof(int), 100);
 
-    char *test_arr[1000] = {
+void hashtable_stats(Hashtable *ht, char *message) {
+    printf("%s count: %d, cap: %d, load factor: %f\n", message,
+         ht->count, ht->capacity, (float)ht->count/ht->capacity);
+}
+
+char *test_arr[1000] = {
     "k0TMfk70gwDM6E2o",
     "CZfxjdbdxUiLsb0E",
     "mr7eGFtWMhe6zrZP",
@@ -1302,85 +1319,25 @@ int main() {
     "KuXOT5LQXVGql87y",
     "adeCvRTxxAbOXER",
     };
+   
 
+int main () {
+    Hashtable *ht = hashtable_create(sizeof(int), 1);
+    assert(hashtable_empty(ht) == true);
 
-
-    //////////  hashtable_put tests
-    int x = 1;
-    for (int i = 0; i < 1000; i++) {
-        assert(hashtable_put(ht, test_arr[i], &x) == true);
+    int num_to_test = 1000;
+    for (int i = 0; i < num_to_test; i++) {
+        assert(hashtable_put(ht, test_arr[i], &i) == true);
     }
-    printf("\n\n");
 
-    int manually_verified_cnt = 0;
-    for (int i = 0; i < ht->capacity; i++) {
-        if (ht->arr[i].state == ENTRY_USED) {
-            for (int j = 0; j < 1000; j++) {
-                if (strcmp(ht->arr[i].key, test_arr[j]) == 0) {
-                    manually_verified_cnt++;
-                }
-            }
-        }
+    for (int i = 0; i < num_to_test; i++) {
+        assert(hashtable_contains(ht, test_arr[i]) == true);
     }
-    printf("Contains count: %d\n", manually_verified_cnt);
-    assert(manually_verified_cnt == 1000);
-
-    int verified_keys_cnt = 0;
-    for (int j = 0; j < ht->capacity; j++) {
-        if (ht->arr[j].state == ENTRY_USED) {
-            for (int i = 0; i < 1000; i++) { // brute force check for a key match
-                if (strcmp(test_arr[i], ht->arr[j].key) == 0) {
-                    verified_keys_cnt++;
-                }
-            }
-        }
-    }
-    printf("Verified keys count for 1000 puts: %d\n\n\n", verified_keys_cnt);
-
-    int contained_cnt = 0;
-    for (int i = 0; i < 1000; i++) {
-        if (hashtable_contains(ht, test_arr[i])) {
-            contained_cnt++;
-        }
-    }
-    assert(contained_cnt == 1000);
-
-    // printf("called hashtable_resize: Expected Capacity: 3200: FOUND: %d\n", ht->capacity);
-    // assert(ht->count == 1000);
-
-    assert(hashtable_contains(ht, test_arr[999]) == true);
-    hashtable_remove(ht, test_arr[999]);
-    printf("keys post removal stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
-    assert(hashtable_contains(ht, test_arr[999]) == false);
-
-    hashtable_remove(ht, test_arr[999]);
-    printf("keys post removal stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
-    assert(hashtable_contains(ht, test_arr[999]) == false);
+    hashtable_stats(ht, "Just put 1000 elements total, put and contains working");
 
 
 
-    hashtable_remove(ht, test_arr[998]);
-    printf("keys post removal stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
-    assert(hashtable_contains(ht, test_arr[998]) == false);
-
-    hashtable_remove(ht, test_arr[500]);
-    printf("keys post removal stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
-    assert(hashtable_contains(ht, test_arr[500]) == false);
-
-    // for (int i = 0; i < 500; i++) {
-    //     hashtable_remove(ht, test_arr[i]);
-    // }
-    // printf("removed first 500 keys");
-    // printf("keys post removal stats count: %d, cap: %d, load factor: %f\n", ht->count, ht->capacity, (float)ht->count/ht->capacity);
-    // assert(ht->count == 500);
-
-    // for (int i = 0; i < ht->capacity; i++) {
-    //     if (ht->arr[i].state == ENTRY_USED) {
-    //         printf("KEY:%s -> %s\n", ht->arr[i].key, ht->arr[i].value);
-    //     }
-    // }
 
     hashtable_deinit(ht);
     free(ht);
-    return 0;
-} 
+}

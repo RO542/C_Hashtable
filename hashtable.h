@@ -1,6 +1,5 @@
 #pragma once
-#include <stdlib.h>
-
+// hashtable.h
 #ifndef TARGET_LOAD_FACTOR
 #define TARGET_LOAD_FACTOR 0.65
 #endif 
@@ -49,12 +48,15 @@ typedef struct Hashtable {
 bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity);
 void hashtable_deinit(Hashtable *ht);
 struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap);
+void hashtable_reinit_entry(Hashtable *ht, unsigned int entry_idx, EntryState state);
 
 bool hashtable_put(Hashtable *ht, const char *key, void *value);
-bool hashtable_get(const Hashtable *ht, const char *key, void *out_element);
+void *hashtable_get(const Hashtable *ht, const char *key);
 void hashtable_remove(Hashtable *ht, const char *key);
-bool hashtable_resize(Hashtable *ht);
+bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity);
 
-struct Hashentry *hashtable_toArray(const Hashtable *ht);
+struct Hashentry *hashtable_to_items_array(const Hashtable *ht);
 ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx);
 ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned long *out_hash, unsigned int *out_idx);
+
+void hashtable_stats(Hashtable *ht, char *message);
