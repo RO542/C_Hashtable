@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define QUAD_PROBING
 #include "hashtable.h"
 #include <assert.h>
 
@@ -89,28 +90,35 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
     Hashentry *arr = ht->arr;
 
     do {
-        EntryState state = arr[curr_idx].state;
-        if (state == ENTRY_UNUSED) {
+        switch (arr[curr_idx].state) {
+        case ENTRY_UNUSED: 
             *out_hash = hash;
-            *out_idx = (first_deleted_idx != -1) ? first_deleted_idx : curr_idx;
+            *out_idx = (unsigned int)((first_deleted_idx != -1) ? first_deleted_idx : curr_idx);
             return PROBE_KEY_NOT_FOUND;
-        } else if (state == ENTRY_DELETED) {
+        case ENTRY_DELETED: 
             if (first_deleted_idx == -1) {
                 first_deleted_idx = curr_idx;
             }
-        } else if (state == ENTRY_USED && arr[curr_idx].stored_hash == hash && strcmp(arr[curr_idx].key, key_str) == 0) {
-            *out_idx = curr_idx;
-            return PROBE_KEY_FOUND;
+            break;
+        case ENTRY_USED:
+            if (arr[curr_idx].stored_hash == hash 
+                && strncmp(arr[curr_idx].key, key_str, MAX_KEY_LEN) == 0) {
+                *out_idx = curr_idx;
+                return PROBE_KEY_FOUND;
+            }
+        default:
+            break;
         }
+        
         curr_idx = (start_idx + probe_offset(++x)) % ht->capacity;
         if (++probe_cnt >= ht->capacity) {
             break;
         }
     } while (curr_idx != start_idx);
 
-    if (first_deleted_idx != -1) {
+    if (first_deleted_idx != -1) { // only a deleted index was found, use it
         *out_hash = hash;
-        *out_idx = first_deleted_idx;
+        *out_idx = (unsigned int)first_deleted_idx;
         return PROBE_KEY_NOT_FOUND;
     }
 
@@ -213,7 +221,6 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
     entry->state = ENTRY_USED;
     entry->stored_hash = hash;
     ht->count++;
-    hashtable_stats(ht, "put");
     return true;
 }
 ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx) {
@@ -230,11 +237,12 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
             return PROBE_KEY_NOT_FOUND;
         } else if (ht->arr[curr_idx].state == ENTRY_USED 
                    && ht->arr[curr_idx].stored_hash == hash 
-                   && strcmp(key, ht->arr[curr_idx].key) == 0) {
+                   && strncmp(key, ht->arr[curr_idx].key, MAX_KEY_LEN) == 0) {
             *used_idx = curr_idx;
             return PROBE_KEY_FOUND;
         }
-        // else the state is DELETED so we keep probing over
+        // if not an open slot or an existing filled slot w/matching key
+        // we hit an ENTRY_DELETED state and continue to probe past it
         curr_idx = (start_idx + probe_offset(++x)) % ht->capacity;
         if (++probe_cnt >= ht->capacity) {
             break;
@@ -244,6 +252,10 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
 }
 
 bool hashtable_contains(const Hashtable *ht, const char *key) {
+    if (hashtable_empty(ht)) {
+        fprintf(stderr, "hashtable_contains called on empty hashtable\n");
+        return false;
+    }
     unsigned int _;
     return probe_used_idx(ht, key, &_) == PROBE_KEY_FOUND;
 }
@@ -251,7 +263,6 @@ bool hashtable_contains(const Hashtable *ht, const char *key) {
 bool hashtable_empty(const Hashtable *ht) {
     return ht->count == 0;
 }
-
 
 void hashtable_reinit_entry(Hashtable *ht, unsigned int entry_idx, EntryState state) {
     free(ht->arr[entry_idx].key);
@@ -263,13 +274,14 @@ void hashtable_reinit_entry(Hashtable *ht, unsigned int entry_idx, EntryState st
 }
 
 void hashtable_remove(Hashtable *ht, const char *key) {
+    if (hashtable_empty(ht)) {
+        return;
+    }
     unsigned int used_idx;
     if (probe_used_idx(ht, key, &used_idx) == PROBE_KEY_FOUND) {
-        printf("Found key to remove, input: %s -> found_key: %s\n", key, ht->arr[used_idx].key);
         hashtable_reinit_entry(ht, used_idx, ENTRY_DELETED);
         ht->count--;
     }
-    hashtable_stats(ht, "Remove called");
 }
 
 void hashtable_clear(Hashtable *ht) {
@@ -1324,20 +1336,57 @@ char *test_arr[1000] = {
 int main () {
     Hashtable *ht = hashtable_create(sizeof(int), 1);
     assert(hashtable_empty(ht) == true);
+    printf("PASSED: newly created hashmap hashmap_empty == true passed\n");
+
 
     int num_to_test = 1000;
     for (int i = 0; i < num_to_test; i++) {
         assert(hashtable_put(ht, test_arr[i], &i) == true);
     }
+    printf("PASSED: put 1000 elements into hashtable no errors\n");
+
 
     for (int i = 0; i < num_to_test; i++) {
         assert(hashtable_contains(ht, test_arr[i]) == true);
     }
-    hashtable_stats(ht, "Just put 1000 elements total, put and contains working");
+    printf("PASSED: hashtable_contains returns true for the 1000 previously inserted elements\n");
 
 
+    int get_counter = 0;
+    for (int i = 0; i < num_to_test; i++) {
+        if (hashtable_get(ht, test_arr[i]) != NULL) {
+            get_counter++;
+        }
+    }
+    assert(get_counter == num_to_test);
+    printf("PASSED: 1000 calls hashtable_get with non NULL returns\n");
 
+    int manual_count = 0;
+    for (int i = 0; i < ht->capacity; i++) {
+        if (ht->arr[i].state == ENTRY_USED) {
+            manual_count++;
+        }
+    }
+    assert(manual_count == get_counter);
+    assert(manual_count == num_to_test);
+    printf("PASSED: Manually verified %d ENTRY_USED in hashtable\n", num_to_test);
+
+
+    for (int i = 0; i < num_to_test / 2; i++) {
+        hashtable_remove(ht, test_arr[i]);
+    }
+    assert(ht->count == num_to_test / 2);
+    assert(ht->count == 500);
+    printf("PASSED Removed %d elements from hashtable, count is now : %d \n", num_to_test / 2, ht->count);
+
+
+    hashtable_clear(ht);
+    assert(ht->count == 0);
+    assert(hashtable_empty(ht) == true);
+    printf("PASSED: hashtable_clear makes the total count 0\n");
 
     hashtable_deinit(ht);
     free(ht);
+    free(NULL);
+    return 0;
 }

@@ -54,6 +54,7 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value);
 void *hashtable_get(const Hashtable *ht, const char *key);
 void hashtable_remove(Hashtable *ht, const char *key);
 bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity);
+bool hashtable_empty(const Hashtable *ht);
 
 struct Hashentry *hashtable_to_items_array(const Hashtable *ht);
 ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx);
