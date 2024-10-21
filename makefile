@@ -1,7 +1,5 @@
-test: build
-	./hashtable.exe
-build: hashtable.c hashtable.h
-	gcc -o hashtable .\hashtable.c
+build_tests:
+	gcc -I./ hashtable_tests.c hashtable.c -Wall -Wpedantic -Werror -o hashtable_tests
 
-build_strict:
-	gcc -Wall -Wpedantic -Werror -o hashtable .\hashtable.c
+run_tests:
+	./hashtable_tests
