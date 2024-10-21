@@ -4,12 +4,14 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#include "hashtable.h"
 #include "test_cases.h"
-extern char *test_arr[];
+extern char *test_arr[]; // test_cases.h
 
+#define QUAD_PROBING
 #include "hashtable.h"
-int main () {
+
+
+int main() {
     Hashtable *ht = hashtable_create(sizeof(int), 1);
     assert(hashtable_empty(ht) == true);
     printf("PASSED: newly created hashmap hashmap_empty == true passed\n");
@@ -62,6 +64,7 @@ int main () {
     printf("PASSED: hashtable_clear makes the total count 0\n");
 
     hashtable_deinit(ht);
+    hashtable_deinit(ht); // no crash on second deinit
     free(ht);
     return 0;
 }

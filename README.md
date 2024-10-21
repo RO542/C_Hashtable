@@ -10,5 +10,3 @@ Possible Ideas to research or implement:
     -make it so the hash_func is used as a function pointer and is user swappable but djb2 by default
     -make the hash function work on any random assortment of bytes 
     -make sure the hashes returned by hash_func are u64s and add to documentation that all hash functions must return u64/size_t
-    -consider changing the OFFSET macro to a an inlined function
-    -consider using a macro to wrap init or create so sizeof isn't needed
