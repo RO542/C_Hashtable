@@ -67,21 +67,29 @@ void hashtable_clear(Hashtable *ht);
 
 // _hashtable_destroy macro to keep the interface consistent
 // frees and NULLs all contained pointers keys, vals, table pointer itself
+// mirrors hashtable_create in reverse
 #define hashtable_destroy(ht_ptr) _hashtable_destroy(&ht_ptr)
-
 void _hashtable_destroy(Hashtable **ht);
 
+// returns a shallow pointer to an array of Hashentries each with a key/value pointer 
+// caller must free the allocated pointer this function returns when done
 struct Hashentry *hashtable_to_items_array(const Hashtable *ht);
 
+// internal function used to probe for an index that has a HashEntry in the ENTRY_USED state
+// returns PROBE_KEY_FOUND if an entry with ENTRY_USED state is passed matching the key (and hash) passed
+// in this case used_idx is moodified to contain the ENTRY_USED index
 ProbeResult probe_used_idx(
     const Hashtable *ht,
     const char *key,
     unsigned int *used_idx);
 
+// internal function used to probe for an index that has a Hashentry in the UNUSED state
+// if no UNUSED entry is found but a DELETED one hass ben out_idx is set to that instead
 ProbeResult probe_free_idx(
     const Hashtable *ht,
     const char *key_str,
     unsigned long *out_hash,
     unsigned int *out_idx);
 
+// prints basic table stats: count, capacity, load factor // TODO: add memory usage counter here too
 void hashtable_stats(Hashtable *ht, char *message);
