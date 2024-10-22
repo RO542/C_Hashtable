@@ -8,11 +8,12 @@
 extern char *test_arr[]; // test_cases.h
 
 #define QUAD_PROBING
+#define TARGET_LOAD_FACTOR 0.5
 #include "hashtable.h"
 
 
 int main() {
-    Hashtable *ht = hashtable_create(sizeof(int), 1);
+    Hashtable *ht = hashtable_create(int, 1);
     assert(hashtable_empty(ht) == true);
     printf("PASSED: newly created hashmap hashmap_empty == true passed\n");
 
@@ -63,6 +64,11 @@ int main() {
     assert(hashtable_empty(ht) == true);
     printf("PASSED: hashtable_clear makes the total count 0\n");
 
+
+    for (int i = 0; i < num_to_test/2; i++) {
+        assert(hashtable_put(ht, test_arr[i], &i) == true);
+    }
+    printf("PASSED: put 500 elements into hashtable that was cleared\n");
 
     // multiple destroy calls should cause no issues
     hashtable_destroy(ht);

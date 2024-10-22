@@ -47,7 +47,11 @@ bool hashtable_init(
 
 void hashtable_deinit(Hashtable *ht);
 
-struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap);
+// wrapper macro around _hashtable_create() which allocates a pointer for a hashtable 
+// with the desired capacity passed in, the first argument is the type and second 
+// the desired capacity
+#define hashtable_create(type, new_cap) _hashtable_create(sizeof(type), new_cap);
+struct Hashtable *_hashtable_create(size_t element_size, unsigned int new_cap);
 
 void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState state);
 
@@ -58,6 +62,7 @@ void *hashtable_get(const Hashtable *ht, const char *key);
 bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity);
 
 bool hashtable_empty(const Hashtable *ht);
+unsigned int hashtable_count(const Hashtable *ht);
 
 bool hashtable_contains(const Hashtable *ht, const char *key);
 

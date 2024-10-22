@@ -13,7 +13,7 @@ bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int b
         return false;
     }
     if (value_size < 1 || base_capacity < 1) {
-        fprintf(stderr, "To use hashtable_int both the value_size, and capacity must be positive\n");
+        fprintf(stderr, "To use hashtable_init both the value_size for the type, and capacity must be positive\n");
         return false;
     }
     ht->count = 0;
@@ -46,7 +46,7 @@ void hashtable_deinit(Hashtable *ht) {
     ht->arr = NULL;
 }
 
-struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap) {
+struct Hashtable *_hashtable_create(size_t element_size, unsigned int new_cap) {
     Hashtable *ht = (Hashtable *)malloc(sizeof(Hashtable));
     if (!ht) {
         fprintf(stderr, "Failed to allocate memory for ht during hashtable_create\n");
@@ -58,6 +58,15 @@ struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap) {
         ht = NULL;
     }
     return ht;
+}
+
+void _hashtable_destroy(Hashtable **ht_ptr) {
+    if (ht_ptr && *ht_ptr)  {
+        Hashtable *ht = *ht_ptr;
+        hashtable_deinit(ht);
+        free(ht);
+        *ht_ptr = NULL;
+    }
 }
 
 unsigned long hash_func(const char *key_str) {
@@ -79,8 +88,8 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
         return PROBE_ERROR;
     }
 
-    unsigned long hash = hash_func(key_str);
-    unsigned int start_idx = hash % ht->capacity;
+    unsigned long key_hash = hash_func(key_str);
+    unsigned int start_idx = key_hash % ht->capacity;
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
     int first_deleted_idx = -1;
@@ -89,15 +98,16 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
     do {
         switch (arr[curr_idx].state) {
         case ENTRY_UNUSED: 
-            *out_hash = hash;
-            *out_idx = (unsigned int)((first_deleted_idx != -1) ? first_deleted_idx : curr_idx);
+            *out_hash = key_hash;
+            *out_idx = (unsigned int)(first_deleted_idx != -1 ? first_deleted_idx : curr_idx);
             return PROBE_KEY_NOT_FOUND;
         case ENTRY_DELETED: 
-            if (first_deleted_idx == -1) 
+            if (first_deleted_idx == -1) {
                 first_deleted_idx = curr_idx;
+            }
             break;
         case ENTRY_USED:
-            if (arr[curr_idx].stored_hash == hash 
+            if (arr[curr_idx].stored_hash == key_hash 
                 && strncmp(arr[curr_idx].key, key_str, MAX_KEY_LEN) == 0) {
                 *out_idx = curr_idx;
                 return PROBE_KEY_FOUND;
@@ -113,7 +123,7 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
     } while (curr_idx != start_idx);
 
     if (first_deleted_idx != -1) { // only a deleted index was found, use it
-        *out_hash = hash;
+        *out_hash = key_hash;
         *out_idx = (unsigned int)first_deleted_idx;
         return PROBE_KEY_NOT_FOUND;
     }
@@ -137,12 +147,8 @@ bool is_prime(unsigned int x) {
 }
 
 unsigned int next_prime(unsigned int x) {
-    if (x <= 2) {
-        return 2;
-    }
-    if (x % 2 == 0) { 
-        x++; // start with odd number
-    }
+    if (x <= 2) return 2;
+    x = (x % 2 == 0 ? x++ : x);
     while (!is_prime(x)) {
         x += 2;
     }
@@ -258,15 +264,15 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
         fprintf(stderr, "Cannot probe for next used index in Hashtable since count equals capacity.\n");
         return PROBE_ERROR;
     }
-    unsigned long hash = hash_func(key);
-    unsigned int start_idx = hash % ht->capacity;
+    unsigned long key_hash = hash_func(key);
+    unsigned int start_idx = key_hash % ht->capacity;
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
     do {
         if (ht->arr[curr_idx].state == ENTRY_UNUSED) {
             return PROBE_KEY_NOT_FOUND;
         } else if (ht->arr[curr_idx].state == ENTRY_USED 
-                   && ht->arr[curr_idx].stored_hash == hash 
+                   && ht->arr[curr_idx].stored_hash == key_hash 
                    && strncmp(key, ht->arr[curr_idx].key, MAX_KEY_LEN) == 0) {
             *used_idx = curr_idx;
             return PROBE_KEY_FOUND;
@@ -292,6 +298,10 @@ bool hashtable_contains(const Hashtable *ht, const char *key) {
 
 bool hashtable_empty(const Hashtable *ht) {
     return ht->count == 0;
+}
+
+unsigned int hashtable_count(const Hashtable *ht) {
+    return ht->count;
 }
 
 void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState state) {
@@ -338,17 +348,6 @@ void *hashtable_get(const Hashtable *ht, const char *key) {
     }
 }
 
-#define hashtable_destroy(ht_ptr) _hashtable_destroy(&ht_ptr)
-
-void _hashtable_destroy(Hashtable **ht_ptr) {
-    if (ht_ptr && *ht_ptr)  {
-        Hashtable *ht = *ht_ptr;
-        hashtable_deinit(ht);
-        free(ht);
-        *ht_ptr = NULL;
-    }
-}
-
 struct Hashentry *hashtable_to_items_array(const Hashtable *ht) {
     if (!ht) {
         fprintf(stderr, "A valid hashtable pointer is needed to grab all USED Hashentries\n");
@@ -368,6 +367,10 @@ struct Hashentry *hashtable_to_items_array(const Hashtable *ht) {
 }
 
 void hashtable_stats(Hashtable *ht, char *message) {
-    printf("%s count: %d, cap: %d, load factor: %f\n", message,
+    if (!ht) {
+        fprintf(stderr, "hashtable_stats , nothing to print - the table pointer is NULL\n");
+        return;
+    }
+    printf("%s count: %d, cap: %d, load factor: %f\n", message ? message : "",
          ht->count, ht->capacity, (float)ht->count/ht->capacity);
 }
