@@ -8,13 +8,9 @@
 #endif
 
 #ifdef QUAD_PROBING
-static inline unsigned int probe_offset(unsigned int x) {
-    return x * x;
-}
+static inline unsigned int probe_offset(unsigned int x) {return x * x;}
 #else 
-static inline unsigned int probe_offset(unsigned int x) {
-    return x;
-}
+static inline unsigned int probe_offset(unsigned int x) {return x;}
 #endif
 
 typedef enum EntryState {
@@ -44,21 +40,48 @@ typedef struct Hashtable {
 } Hashtable;
 
 
-bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity);
+bool hashtable_init(
+    Hashtable *ht,
+    const size_t value_size,
+    const unsigned int base_capacity);
+
 void hashtable_deinit(Hashtable *ht);
+
 struct Hashtable *hashtable_create(size_t element_size, unsigned int new_cap);
+
 void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState state);
 
 bool hashtable_put(Hashtable *ht, const char *key, void *value);
+
 void *hashtable_get(const Hashtable *ht, const char *key);
-void hashtable_remove(Hashtable *ht, const char *key);
+
 bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity);
+
 bool hashtable_empty(const Hashtable *ht);
+
 bool hashtable_contains(const Hashtable *ht, const char *key);
+
+void hashtable_remove(Hashtable *ht, const char *key);
+
 void hashtable_clear(Hashtable *ht);
 
+// _hashtable_destroy macro to keep the interface consistent
+// frees and NULLs all contained pointers keys, vals, table pointer itself
+#define hashtable_destroy(ht_ptr) _hashtable_destroy(&ht_ptr)
+
+void _hashtable_destroy(Hashtable **ht);
+
 struct Hashentry *hashtable_to_items_array(const Hashtable *ht);
-ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx);
-ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned long *out_hash, unsigned int *out_idx);
+
+ProbeResult probe_used_idx(
+    const Hashtable *ht,
+    const char *key,
+    unsigned int *used_idx);
+
+ProbeResult probe_free_idx(
+    const Hashtable *ht,
+    const char *key_str,
+    unsigned long *out_hash,
+    unsigned int *out_idx);
 
 void hashtable_stats(Hashtable *ht, char *message);

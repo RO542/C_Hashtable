@@ -63,8 +63,10 @@ int main() {
     assert(hashtable_empty(ht) == true);
     printf("PASSED: hashtable_clear makes the total count 0\n");
 
-    hashtable_deinit(ht);
-    hashtable_deinit(ht); // no crash on second deinit
-    free(ht);
+
+    // multiple destroy calls should cause no issues
+    hashtable_destroy(ht);
+    hashtable_destroy(ht);
+    hashtable_destroy(ht);
     return 0;
 }

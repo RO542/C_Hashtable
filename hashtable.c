@@ -93,9 +93,8 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
             *out_idx = (unsigned int)((first_deleted_idx != -1) ? first_deleted_idx : curr_idx);
             return PROBE_KEY_NOT_FOUND;
         case ENTRY_DELETED: 
-            if (first_deleted_idx == -1) {
+            if (first_deleted_idx == -1) 
                 first_deleted_idx = curr_idx;
-            }
             break;
         case ENTRY_USED:
             if (arr[curr_idx].stored_hash == hash 
@@ -336,6 +335,17 @@ void *hashtable_get(const Hashtable *ht, const char *key) {
     default:
         fprintf(stderr, "Failed to perform get for Hashtable, probe_used_idx failed\n");
         return NULL;
+    }
+}
+
+#define hashtable_destroy(ht_ptr) _hashtable_destroy(&ht_ptr)
+
+void _hashtable_destroy(Hashtable **ht_ptr) {
+    if (ht_ptr && *ht_ptr)  {
+        Hashtable *ht = *ht_ptr;
+        hashtable_deinit(ht);
+        free(ht);
+        *ht_ptr = NULL;
     }
 }
 
