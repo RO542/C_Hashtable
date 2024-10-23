@@ -70,6 +70,8 @@ void hashtable_remove(Hashtable *ht, const char *key);
 
 void hashtable_clear(Hashtable *ht);
 
+float hashtable_load_factor(const Hashtable *ht);
+
 // _hashtable_destroy macro to keep the interface consistent
 // frees and NULLs all contained pointers keys, vals, table pointer itself
 // mirrors hashtable_create in reverse

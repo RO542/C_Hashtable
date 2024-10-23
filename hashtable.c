@@ -112,6 +112,7 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
                 *out_idx = curr_idx;
                 return PROBE_KEY_FOUND;
             }
+            break;
         default:
             break;
         }
@@ -210,7 +211,7 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
         fprintf(stderr, "Hashtable_put failed, check the hashtable pointer is valid plus key/value usage\n");
         return false;
     }
-    if ((ht->count + 1)/(float)ht->capacity >= TARGET_LOAD_FACTOR) {
+    if (hashtable_load_factor(ht) >= TARGET_LOAD_FACTOR) {
         if (!hashtable_resize(ht, 2 * ht->capacity)) {
             fprintf(stderr, "hashtable_put failed due to failed resize\n");
             return false;
@@ -331,6 +332,10 @@ void hashtable_clear(Hashtable *ht) {
         hashtable_init_entry(ht, i, ENTRY_UNUSED);
     }
     ht->count = 0;
+}
+
+float hashtable_load_factor(const Hashtable *ht) {
+    return ((float)ht->count / ht->capacity);
 }
 
 void *hashtable_get(const Hashtable *ht, const char *key) {
