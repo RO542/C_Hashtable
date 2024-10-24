@@ -6,10 +6,6 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define XXH_STATIC_LINKING_ONLY
-#define XXH_IMPLEMENTATION
-#include "xxhash/xxhash.h"
-
 #ifndef TARGET_LOAD_FACTOR
 #define TARGET_LOAD_FACTOR 0.65
 #endif 
@@ -114,3 +110,5 @@ void hashtable_stats(Hashtable *ht, char *message);
 bool is_even(int x);
 unsigned int next_prime(unsigned int x);
 bool is_prime(unsigned int x);
+
+unsigned int djb2(const void *key, size_t key_size);

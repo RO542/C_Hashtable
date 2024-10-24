@@ -1,5 +1,9 @@
 #include "hashtable.h"
 
+#define XXH_STATIC_LINKING_ONLY
+#define XXH_IMPLEMENTATION
+#include "xxhash/xxhash.h"
+
 bool hashtable_init(Hashtable *ht, const size_t key_size, const size_t value_size, const unsigned int base_capacity) {
     if (!ht) {
         fprintf(stderr, "Hashtable is NULL, unable to initialize.\n");
@@ -63,15 +67,19 @@ void _hashtable_destroy(Hashtable **ht_ptr) {
     }
 }
 
-unsigned int hash_func(const void *key_str, size_t key_size) {
-    // djb2
-    // unsigned long hash = 5381;
-    // int c;
-    // while ((c = *key_str++)) {
-    //     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-    // }
-    // return hash;
-    return XXH32(key_str, key_size, 0);
+unsigned int djb2(const void *key, size_t key_size) {
+   unsigned int hash = 5381;
+   const unsigned char *ptr = (unsigned char *)key;
+   const unsigned char *end = ptr + key_size;
+   for (int c = *ptr++; ptr < end; c = *ptr++) {
+       hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+   }
+   return hash;
+}
+
+unsigned int hash_func(const void *key, size_t key_size) {
+    return XXH32(key, key_size, 0);
+    // return djb2(key, key_size);
 }
 
 ProbeResult probe_free_idx(const Hashtable *ht, const void *key_str, unsigned long *out_hash, unsigned int *out_idx) {
