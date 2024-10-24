@@ -1,24 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <math.h>
-
 #include "hashtable.h"
 
-
-bool hashtable_init(Hashtable *ht, const size_t value_size, const unsigned int base_capacity) {
+bool hashtable_init(Hashtable *ht, const size_t key_size, const size_t value_size, const unsigned int base_capacity) {
     if (!ht) {
         fprintf(stderr, "Hashtable is NULL, unable to initialize.\n");
         return false;
     }
-    if (value_size < 1 || base_capacity < 1) {
+    if (key_size < 1 || value_size < 1 || base_capacity < 1) {
         fprintf(stderr, "To use hashtable_init both the value_size for the type, and capacity must be positive\n");
         return false;
     }
     ht->count = 0;
     ht->capacity = base_capacity;
-    ht->element_size = value_size; // size of the stored elements themselves in bytes not the Hashentries
+    ht->key_size = key_size;
+    ht->value_size = value_size; // size of the stored elements themselves in bytes not the Hashentries
     ht->arr = (Hashentry *)malloc(ht->capacity * sizeof(Hashentry));
     if (!ht->arr) {
         fprintf(stderr, "Unable to allocate memory for Hashtable entries");
@@ -46,13 +40,13 @@ void hashtable_deinit(Hashtable *ht) {
     ht->arr = NULL;
 }
 
-struct Hashtable *_hashtable_create(size_t element_size, unsigned int new_cap) {
+struct Hashtable *_hashtable_create(size_t key_size, size_t value_size, unsigned int new_cap) {
     Hashtable *ht = (Hashtable *)malloc(sizeof(Hashtable));
     if (!ht) {
         fprintf(stderr, "Failed to allocate memory for ht during hashtable_create\n");
         return NULL;
     }
-    if (!hashtable_init(ht, element_size, new_cap)) { 
+    if (!hashtable_init(ht, key_size, value_size, new_cap)) { 
         fprintf(stderr, "failed to initialize hashtable during hashtableinit, aborting ...\n");
         free(ht);
         ht = NULL;
@@ -69,26 +63,24 @@ void _hashtable_destroy(Hashtable **ht_ptr) {
     }
 }
 
-unsigned long hash_func(const char *key_str) {
-    unsigned long hash = 5381;
-    int c;
-    while ((c = *key_str++)) {
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-    }
-    return hash;
+unsigned int hash_func(const void *key_str, size_t key_size) {
+    // djb2
+    // unsigned long hash = 5381;
+    // int c;
+    // while ((c = *key_str++)) {
+    //     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    // }
+    // return hash;
+    return XXH32(key_str, key_size, 0);
 }
 
-ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned long *out_hash, unsigned int *out_idx) {
+ProbeResult probe_free_idx(const Hashtable *ht, const void *key_str, unsigned long *out_hash, unsigned int *out_idx) {
     if (ht->count == ht->capacity) {
         fprintf(stderr, "Hashtable is full, unable to add new elements.\n");
         return PROBE_ERROR;
     }
-    if (strlen(key_str) >= MAX_KEY_LEN) {
-        fprintf(stderr, "Provided key is too long.\n");
-        return PROBE_ERROR;
-    }
 
-    unsigned long key_hash = hash_func(key_str);
+    unsigned long key_hash = hash_func(key_str, ht->key_size);
     unsigned int start_idx = key_hash % ht->capacity;
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
@@ -108,7 +100,7 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
             break;
         case ENTRY_USED:
             if (arr[curr_idx].stored_hash == key_hash 
-                && strncmp(arr[curr_idx].key, key_str, MAX_KEY_LEN) == 0) {
+                && memcmp(arr[curr_idx].key, key_str, ht->key_size) == 0) {
                 *out_idx = curr_idx;
                 return PROBE_KEY_FOUND;
             }
@@ -205,7 +197,7 @@ bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity) {
     return true;
 }
 
-bool hashtable_put(Hashtable *ht, const char *key, void *value) {
+bool hashtable_put(Hashtable *ht, const void*key, void *value) {
     if (!ht || !key || !value) {
         fprintf(stderr, "Hashtable_put failed, check the hashtable pointer is valid plus key/value usage\n");
         return false;
@@ -227,31 +219,26 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
         result = probe_free_idx(ht, key, &hash, &free_idx);
     }
     if (result == PROBE_KEY_FOUND) {
-        memcpy((char *)ht->arr[free_idx].value, (char *)value, ht->element_size);
+        memcpy((char *)ht->arr[free_idx].value, (char *)value, ht->value_size);
         return true;
     }
 
     // this is the PROBE_KEY_NOT_FOUND case so allocatiosn and placement of the key/val must take place
     Hashentry *entry = &ht->arr[free_idx];
-    size_t key_len = strnlen(key, MAX_KEY_LEN);
-    if (key_len >= MAX_KEY_LEN) {
-        fprintf(stderr, "Provided key is too long: MAX_KEY_LEN: %u, provided key len: %llu\n", MAX_KEY_LEN, key_len); 
-        return false;
-    }
-    entry->key = (char *)malloc(key_len + 1);
+    entry->key = malloc(ht->key_size);
     if (!entry->key) {
         fprintf(stderr, "failed to allocate memory for HashEntry key\n");
         return false;
     }
-    strncpy(entry->key, key, key_len);
-    entry->key[key_len] = '\0'; // explicit null termination
+    memcpy(entry->key, key, ht->key_size);
 
-    entry->value = malloc(ht->element_size);
+    entry->value = malloc(ht->value_size);
     if (!entry->value) {
         fprintf(stderr, "failed to allocate memory for HashEntry value/data \n");
+        free(entry->key);
         return false;
     }
-    memcpy(entry->value, value, ht->element_size);
+    memcpy(entry->value, value, ht->value_size);
 
     entry->state = ENTRY_USED;
     entry->stored_hash = hash;
@@ -259,12 +246,12 @@ bool hashtable_put(Hashtable *ht, const char *key, void *value) {
     return true;
 }
 
-ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *used_idx) {
+ProbeResult probe_used_idx(const Hashtable *ht, const void *key, unsigned int *used_idx) {
     if (ht->count == ht->capacity) {
         fprintf(stderr, "Cannot probe for next used index in Hashtable since count equals capacity.\n");
         return PROBE_ERROR;
     }
-    unsigned long key_hash = hash_func(key);
+    unsigned long key_hash = hash_func(key, ht->key_size);
     unsigned int start_idx = key_hash % ht->capacity;
     unsigned int curr_idx = start_idx;
     unsigned int x = 0, probe_cnt = 0;
@@ -273,7 +260,7 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
             return PROBE_KEY_NOT_FOUND;
         } else if (ht->arr[curr_idx].state == ENTRY_USED 
                    && ht->arr[curr_idx].stored_hash == key_hash 
-                   && strncmp(key, ht->arr[curr_idx].key, MAX_KEY_LEN) == 0) {
+                   && memcmp(key, ht->arr[curr_idx].key, ht->key_size) == 0) {
             *used_idx = curr_idx;
             return PROBE_KEY_FOUND;
         }
@@ -287,7 +274,7 @@ ProbeResult probe_used_idx(const Hashtable *ht, const char *key, unsigned int *u
     return PROBE_KEY_NOT_FOUND;
 }
 
-bool hashtable_contains(const Hashtable *ht, const char *key) {
+bool hashtable_contains(const Hashtable *ht, const void *key) {
     if (hashtable_empty(ht)) {
         fprintf(stderr, "hashtable_contains called on empty hashtable\n");
         return false;
@@ -317,7 +304,7 @@ void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState stat
     ht->arr[entry_idx].value = NULL;
 }
 
-void hashtable_remove(Hashtable *ht, const char *key) {
+void hashtable_remove(Hashtable *ht, const void *key) {
     if (hashtable_empty(ht)) {
         return;
     }
@@ -339,7 +326,7 @@ float hashtable_load_factor(const Hashtable *ht) {
     return ((float)ht->count / ht->capacity);
 }
 
-void *hashtable_get(const Hashtable *ht, const char *key) {
+void *hashtable_get(const Hashtable *ht, const void *key) {
     unsigned int used_idx;
     ProbeResult result = probe_used_idx(ht, key, &used_idx);
     switch (result) {

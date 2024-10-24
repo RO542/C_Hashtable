@@ -13,7 +13,7 @@ extern char *test_arr[]; // test_cases.h
 
 
 int main() {
-    Hashtable *ht = hashtable_create(int, 1);
+    Hashtable *ht = hashtable_create(int, int, 10);
     assert(hashtable_empty(ht) == true);
     printf("PASSED: newly created hashmap hashmap_empty == true passed\n");
 
