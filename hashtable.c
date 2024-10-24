@@ -136,9 +136,6 @@ ProbeResult probe_free_idx(const Hashtable *ht, const char *key_str, unsigned lo
 bool is_prime(unsigned int x) {
     if (x <= 1) return false;
     if (x == 2) return true;
-    // if (x % 2 == 0) { // next_prime checks for this case anyway 
-    //     return false;
-    // }
     for (unsigned int i = 3; (i * i < x); i += 2) {
         if (x % i == 0) {
             return false;
@@ -149,11 +146,15 @@ bool is_prime(unsigned int x) {
 
 unsigned int next_prime(unsigned int x) {
     if (x <= 2) return 2;
-    x = (x % 2 == 0 ? x++ : x);
+    if (is_even(x)) x++;
     while (!is_prime(x)) {
         x += 2;
     }
     return x;
+}
+
+inline bool is_even(int x) {
+    return x % 2 == 0;
 }
 
 bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity) {
@@ -183,11 +184,9 @@ bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity) {
     ht->count = 0;
     ht->capacity = new_cap;
     for (unsigned int i = 0; i < new_cap; i++) {
-        ht->arr[i].state = ENTRY_UNUSED;
-        ht->arr[i].stored_hash = 0;
-        ht->arr[i].key = NULL;
-        ht->arr[i].value = NULL;
+        hashtable_init_entry(ht, i, ENTRY_UNUSED);
     }
+
     for (unsigned int i = 0; i < old_cap; i++) {
         if (old_arr[i].state == ENTRY_USED) {
             if (!hashtable_put(ht, old_arr[i].key, old_arr[i].value)) {
@@ -306,7 +305,9 @@ unsigned int hashtable_count(const Hashtable *ht) {
 }
 
 void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState state) {
-    if (ht->arr[entry_idx].state == ENTRY_USED) {
+    // if you are setting an entry state to deleted that means it already had associated key/value allocations we must free
+    // if you are setting an entry state to unused it means we are initializing a new Hashtable
+    if (state == ENTRY_DELETED) {
         free(ht->arr[entry_idx].key);
         free(ht->arr[entry_idx].value);
     }
