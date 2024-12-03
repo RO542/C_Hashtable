@@ -63,6 +63,29 @@ int main() {
     printf("Passed test removed first 250 elements and verified removal hashtable_contains\n");
 
 
+    HTIterator itr;
+    int itr_cnt = 0;
+    for (Hashentry *entry = HTIterator_start(&itr, ht1); entry != NULL; entry = HTIterator_next(&itr)) {
+        assert(entry);
+        assert(entry->key);
+        assert(entry->value);
+        itr_cnt++;
+        printf("Iterator: %d -> %d\n", *(int *)entry->key, *(int *)entry->value);
+    }
 
+    assert(itr_cnt == hashtable_count(ht1));
+    printf("Passed tests for HTIterator called to exhasution, all %u key/val pairs found\n", ht1->count);
+
+
+
+    for (unsigned int i = 0; i < ht1->capacity; i++) {
+        if (ht1->arr[i].state == ENTRY_USED) {
+            Hashentry *e = &ht1->arr[i];
+            assert(e);
+            assert(e->key);
+            assert(e->value);
+            // printf("%d -> %d\n", *(int *)e->key, *(int *)e->value);
+        }
+    }
     return 0;
 }

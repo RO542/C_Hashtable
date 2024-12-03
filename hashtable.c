@@ -217,7 +217,6 @@ bool hashtable_put(Hashtable *ht, const void *key, void *value) {
         return false;
     }
     if (hashtable_load_factor(ht) >= TARGET_LOAD_FACTOR) {
-        // if (!hashtable_resize(ht, 2 * ht->capacity)) {
         if (!hashtable_resize(ht, 2 * ht->capacity)) {
             fprintf(stderr, "hashtable_put failed due to failed resize\n");
             return false;
@@ -321,9 +320,13 @@ unsigned int hashtable_count(const Hashtable *ht) {
     return ht->count;
 }
 
+// if the input state is ENTRY_DELETED it means it is being reinitialzied
+// and a key and value in this Entry need to be freed
+// otherwise this function is being called tto intialize a truly new Entry and gets ENTRY_UNUSED
+// this is not called by hashtable_put since by the time put is called it should have already been initialize
+// either by the init function or resize function which initializes a new table during resizing
 void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState state) {
-    // if you are setting an entry state to deleted that means it already had associated key/value allocations we must free
-    // if you are setting an entry state to unused it means we are initializing a new Hashtable
+
     if (state == ENTRY_DELETED) {
         free(ht->arr[entry_idx].key);
         free(ht->arr[entry_idx].value);
@@ -387,4 +390,27 @@ void hashtable_stats(Hashtable *ht, char *message) {
     }
     printf("%s count: %d, cap: %d, load factor: %f\n", message ? message : "",
          ht->count, ht->capacity, (float)ht->count/ht->capacity);
+}
+
+
+Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht) {
+    if (!iterator || !ht) {
+        fprintf(stderr, "A valid Iterator pointer and hashtable pointer are needed for HTIterator_init");
+        return NULL;
+    }
+    iterator->ht = ht;
+    iterator->curr_idx = 0;
+    return HTIterator_next(iterator);
+}
+
+Hashentry *HTIterator_next(HTIterator *iterator) {
+    while (iterator->curr_idx < iterator->ht->capacity) {
+        if (iterator->ht->arr[iterator->curr_idx].state == ENTRY_USED) {
+            Hashentry *entry = &iterator->ht->arr[iterator->curr_idx];
+            iterator->curr_idx++;
+            return entry;
+        }
+        iterator->curr_idx++;
+    }
+    return NULL;
 }
