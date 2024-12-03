@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <math.h>
+#include <stdint.h>
+
+#include <assert.h>
 
 #ifndef TARGET_LOAD_FACTOR
 #define TARGET_LOAD_FACTOR 0.65
@@ -31,7 +33,8 @@ typedef enum ProbeResult {
 typedef struct Hashentry {
     void *key; 
     void *value; 
-    unsigned int stored_hash; 
+    // unsigned int stored_hash; 
+    uint64_t stored_hash; 
     EntryState state;
 } Hashentry;
 
@@ -63,7 +66,9 @@ void hashtable_init_entry(Hashtable *ht, unsigned int entry_idx, EntryState stat
 
 bool hashtable_put(Hashtable *ht, const void* key, void *value);
 
-void *hashtable_get(const Hashtable *ht, const void *key);
+void *hashtable_find(const Hashtable *ht, const void *key);
+
+void hashtable_get(const Hashtable *ht, const void *key, void *out_value);
 
 bool hashtable_resize(Hashtable *ht, unsigned int desired_capacity);
 
@@ -84,25 +89,27 @@ float hashtable_load_factor(const Hashtable *ht);
 #define hashtable_destroy(ht_ptr) _hashtable_destroy(&ht_ptr);
 void _hashtable_destroy(Hashtable **ht);
 
-// returns a shallow pointer to an array of Hashentries each with a key/value pointer 
-// caller must free the allocated pointer this function returns when done
-struct Hashentry *hashtable_to_items_array(const Hashtable *ht);
-
-// internal function used to probe for an index that has a HashEntry in the ENTRY_USED state
-// returns PROBE_KEY_FOUND if an entry with ENTRY_USED state is passed matching the key (and hash) passed
-// in this case used_idx is moodified to contain the ENTRY_USED index
 ProbeResult probe_used_idx(
     const Hashtable *ht,
     const void *key,
-    unsigned int *used_idx);
+    unsigned int *used_idx
+);
 
-// internal function used to probe for an index that has a Hashentry in the UNUSED state
-// if no UNUSED entry is found but a DELETED one hass ben out_idx is set to that instead
+/**
+ * This is a helper function for hashtable_put.
+ * Given a starting index, and a hash plus key for comparison the table is scanned for Hashentry with state ENTRY_UNUSED/ENTRY_DELETED.
+ * UNUSED indices Entries are preferred, if the input key matches an existing entry it's index is returned so hashtable_put can replace the value.
+ * Ultimately this function will return a PROBE_RESULT where KEY_FOUND means updating an existing slot/entry and NOT_FOUND means an unused but, 
+ * soon to be in use slot.
+ */
 ProbeResult probe_free_idx(
     const Hashtable *ht,
-    const void *key_str,
-    unsigned long *out_hash,
-    unsigned int *out_idx);
+    const void *key,
+    const uint64_t key_hash,
+    const unsigned int start_idx,
+    unsigned int *out_idx
+); 
+
 
 // prints basic table stats: count, capacity, load factor // TODO: add memory usage counter here too
 void hashtable_stats(Hashtable *ht, char *message);
@@ -111,4 +118,10 @@ bool is_even(int x);
 unsigned int next_prime(unsigned int x);
 bool is_prime(unsigned int x);
 
-unsigned int djb2(const void *key, size_t key_size);
+uint64_t djb2(const void *key, size_t key_size);
+
+
+typedef struct HTIterator {
+    unsigned int curr_idx;
+    const Hashtable *ht;
+} HTIterator;

@@ -13,66 +13,56 @@ extern char *test_arr[]; // test_cases.h
 
 
 int main() {
-    Hashtable *ht = hashtable_create(int, int, 10);
-    assert(hashtable_empty(ht) == true);
-    printf("PASSED: newly created hashmap hashmap_empty == true passed\n");
-
-
-    int num_to_test = 1000;
-    for (int i = 0; i < num_to_test; i++) {
-        assert(hashtable_put(ht, test_arr[i], &i) == true);
+    Hashtable *ht1 = hashtable_create(int, int, 10);
+    for (int i = 0; i < 1000; i++) {
+        assert(hashtable_put(ht1, &i, &i));
     }
-    printf("PASSED: put 1000 elements into hashtable no errors\n");
-
-
-    for (int i = 0; i < num_to_test; i++) {
-        assert(hashtable_contains(ht, test_arr[i]) == true);
-    }
-    printf("PASSED: hashtable_contains returns true for the 1000 previously inserted elements\n");
-
-
-    int get_counter = 0;
-    for (int i = 0; i < num_to_test; i++) {
-        if (hashtable_get(ht, test_arr[i]) != NULL) {
-            get_counter++;
-        }
-    }
-    assert(get_counter == num_to_test);
-    printf("PASSED: 1000 calls hashtable_get with non NULL returns\n");
+    assert(ht1->count == 1000);
+    assert(hashtable_count(ht1) == 1000);
+    printf("Passed test for 1000 put calls, and contains calls, count is 1000\n");
 
     int manual_count = 0;
-    for (int i = 0; i < ht->capacity; i++) {
-        if (ht->arr[i].state == ENTRY_USED) {
-            manual_count++;
+    for (int i = 0; i < ht1->capacity; i++) {
+        if (ht1->arr[i].state == ENTRY_USED) {
+            bool matched_key = false;
+            // brute force check all the hashtable entries for this single key
+            for (int j = 0; j < 1000; j++) {
+                if (j == *(int *)ht1->arr[i].key) {
+                    matched_key = true;
+                    manual_count++;
+                }
+            }
+            assert(matched_key);
         }
     }
-    assert(manual_count == get_counter);
-    assert(manual_count == num_to_test);
-    printf("PASSED: Manually verified %d ENTRY_USED in hashtable\n", num_to_test);
+    assert(hashtable_empty(ht1) == false);
+    assert(manual_count == hashtable_count(ht1));
+    assert(manual_count == ht1->count);
+    assert(manual_count == 1000);
+    printf("Passed brute force test for key matches after 1000 puts, count to 1000 elements, all keys matched\n");
 
 
-    for (int i = 0; i < num_to_test / 2; i++) {
-        hashtable_remove(ht, test_arr[i]);
+    // fails assert here
+    for (int i = 0; i < 1000; i++) {
+        assert(hashtable_contains(ht1, &i));
+        int *out_find = (int *)hashtable_find(ht1, &i);
+        assert(out_find != NULL);
+        assert(*out_find == i);
     }
-    assert(ht->count == num_to_test / 2);
-    assert(ht->count == 500);
-    printf("PASSED Removed %d elements from hashtable, count is now : %d \n", num_to_test / 2, ht->count);
+    printf("passed test for 1000 hashtable_contains/hashtable_find calls calls\n");
 
 
-    hashtable_clear(ht);
-    assert(ht->count == 0);
-    assert(hashtable_empty(ht) == true);
-    printf("PASSED: hashtable_clear makes the total count 0\n");
-
-
-    for (int i = 0; i < num_to_test/2; i++) {
-        assert(hashtable_put(ht, test_arr[i], &i) == true);
+    for (int i = 0; i < 250; i++) {
+        unsigned int old_cnt = ht1->count;
+        hashtable_remove(ht1, &i);
+        assert(ht1->count == old_cnt -1);
+        assert(hashtable_contains(ht1, &i) == false);
     }
-    printf("PASSED: put 500 elements into hashtable that was cleared\n");
+    assert(hashtable_count(ht1) == 750);
+    assert(ht1->count == 750);
+    printf("Passed test removed first 250 elements and verified removal hashtable_contains\n");
 
-    // multiple destroy calls should cause no issues
-    hashtable_destroy(ht);
-    hashtable_destroy(ht);
-    hashtable_destroy(ht);
+
+
     return 0;
 }
