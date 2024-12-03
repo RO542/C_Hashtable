@@ -8,7 +8,7 @@
 extern char *test_arr[]; // test_cases.h
 
 #define QUAD_PROBING
-#define TARGET_LOAD_FACTOR 0.5
+#define TARGET_LOAD_FACTOR 0.65
 #include "hashtable.h"
 
 
@@ -65,7 +65,7 @@ int main() {
 
     HTIterator itr;
     int itr_cnt = 0;
-    for (Hashentry *entry = HTIterator_start(&itr, ht1); entry != NULL; entry = HTIterator_next(&itr)) {
+    for (const Hashentry *entry = HTIterator_start(&itr, ht1); entry != NULL; entry = HTIterator_next(&itr)) {
         assert(entry);
         assert(entry->key);
         assert(entry->value);
@@ -77,15 +77,16 @@ int main() {
     printf("Passed tests for HTIterator called to exhasution, all %u key/val pairs found\n", ht1->count);
 
 
-
+    // alternative way to iterate all key value pairs
     for (unsigned int i = 0; i < ht1->capacity; i++) {
-        if (ht1->arr[i].state == ENTRY_USED) {
-            Hashentry *e = &ht1->arr[i];
-            assert(e);
-            assert(e->key);
-            assert(e->value);
-            // printf("%d -> %d\n", *(int *)e->key, *(int *)e->value);
+        Hashentry entry = ht1->arr[i];
+        if (entry.state == ENTRY_USED) {
+
         }
     }
+
+
+
+    printf("All Hashtable tests/asserts passed\n");
     return 0;
 }

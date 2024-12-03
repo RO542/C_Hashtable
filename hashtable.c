@@ -393,7 +393,7 @@ void hashtable_stats(Hashtable *ht, char *message) {
 }
 
 
-Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht) {
+const Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht) {
     if (!iterator || !ht) {
         fprintf(stderr, "A valid Iterator pointer and hashtable pointer are needed for HTIterator_init");
         return NULL;
@@ -403,7 +403,7 @@ Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht) {
     return HTIterator_next(iterator);
 }
 
-Hashentry *HTIterator_next(HTIterator *iterator) {
+const Hashentry* HTIterator_next(HTIterator *iterator) {
     while (iterator->curr_idx < iterator->ht->capacity) {
         if (iterator->ht->arr[iterator->curr_idx].state == ENTRY_USED) {
             Hashentry *entry = &iterator->ht->arr[iterator->curr_idx];

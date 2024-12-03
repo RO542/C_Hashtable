@@ -123,9 +123,9 @@ uint64_t djb2(const void *key, size_t key_size);
 
 typedef struct HTIterator {
     unsigned int curr_idx;
-    Hashtable *ht;
+    const Hashtable *ht;
 } HTIterator;
 
 
-Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht);
-Hashentry* HTIterator_next(HTIterator *iterator);
+const Hashentry* HTIterator_start(HTIterator *iterator, Hashtable *ht);
+const Hashentry* HTIterator_next(HTIterator *iterator);
